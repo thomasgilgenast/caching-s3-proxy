@@ -36,7 +36,7 @@ class CachingS3Proxy(object):
             # doesn't care what we serve the actual wheel as
             response_headers = [('Content-type', 'text/html')]
         except botocore.exceptions.ClientError as ce:
-            s3_result = ce.response['Error']['Message']
+            s3_result = bytes(ce.response['Error']['Message'], 'UTF-8')
             status = '404 NOT FOUND'
             response_headers = [('Content-type', 'text/plain')]
 
