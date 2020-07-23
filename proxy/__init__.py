@@ -21,20 +21,51 @@ class CachingS3Proxy(object):
             status = '200 OK'
             response_headers = [('Content-type', 'text/plain')]
             start_response(status, response_headers)
-            return ['Caching S3 Proxy']
+            return [bytes('Caching S3 Proxy', 'UTF-8')]
+
+        # catch favicon
+        if path_info == '/favicon.ico':
+            status = '404 NOT FOUND'
+            response_headers = [('Content-type', 'text/plain')]
+            start_response(status, response_headers)
+            return [bytes('Refusing to serve favicon', 'UTF-8')]
+
+        # add entrypoint to manually clear cache
+        if path_info == '/reset':
+            self.cache.clear()
+            status = '200 OK'
+            response_headers = [('Content-type', 'text/plain')]
+            start_response(status, response_headers)
+            return [bytes('Cache cleared', 'UTF-8')]
 
         # this used to be lstrip
         # for our purposes, a key ending in / should have the trailing /
         # stripped here; if the resulting key is a "directory" we will append
         # "/index.html" later
         path_info = path_info.strip('/')
-        (bucket, key) = path_info.split('/', 1)
+
+        # it's possible to request a bare bucket (expecting to recieve a file
+        # call index.html at the bucket root)
+        # in this case path_info doesn't contain any /
+        if '/' not in path_info:
+            bucket = path_info
+            key = 'index.html'
+        else:
+            (bucket, key) = path_info.split('/', 1)
         try:
             s3_result = self.fetch_s3_object(bucket, key)
             status = '200 OK'
-            # pip expects that index.html will be served as text/html and
-            # doesn't care what we serve the actual wheel as
-            response_headers = [('Content-type', 'text/html')]
+            # set headers based on extension
+            if key.endswith('.whl'):
+                response_headers = [('Content-type', 'application/octet-stream')]
+            elif key.endswith('.css'):
+                response_headers = [('Content-type', 'text/css')]
+            elif key.endswith('.js'):
+                response_headers = [('Content-type', 'text/javascript')]
+            elif key.endswith('.png'):
+                response_headers = [('Content-type', 'image/png')]
+            else:
+                response_headers = [('Content-type', 'text/html')]
         except botocore.exceptions.ClientError as ce:
             s3_result = bytes(ce.response['Error']['Message'], 'UTF-8')
             status = '404 NOT FOUND'
@@ -45,7 +76,8 @@ class CachingS3Proxy(object):
 
     def fetch_s3_object(self, bucket, key):
         m = hashlib.md5()
-        m.update((bucket+key).encode('utf-8'))
+        stripped_key = key.rstrip('/').replace('/index.html', '')
+        m.update((bucket+stripped_key).encode('utf-8'))
         cache_key = m.hexdigest()
 
         try:

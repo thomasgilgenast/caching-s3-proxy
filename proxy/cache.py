@@ -76,6 +76,16 @@ class LRUCache(object):
     def __contains__(self, key):
         return key in self.cache
 
+    def clear(self):
+        # delete files
+        for key in self.cache.keys():
+            os.remove(os.path.join(self.cache_dir, key))
+
+        # reset cache
+        self.total_size = 0
+        self.cache = OrderedDict()
+        pickle.dump((self.total_size, self.cache),
+                     open(self.index_file, 'wb'))
 
 # based on https://github.com/erikrose/shiva
 # and also https://github.com/dmfrey/FileLock
