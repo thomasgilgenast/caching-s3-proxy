@@ -79,7 +79,10 @@ class LRUCache(object):
     def clear(self):
         # delete files
         for key in self.cache.keys():
-            os.remove(os.path.join(self.cache_dir, key))
+            try:
+                os.remove(os.path.join(self.cache_dir, key))
+            except FileNotFoundError:
+                pass
 
         # reset cache
         self.total_size = 0
